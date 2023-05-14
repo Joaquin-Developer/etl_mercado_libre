@@ -1,6 +1,6 @@
 # ETL de MercadoLibre
 
-<img src="media/arquitectura.png" width="400" height="350">
+<img src="media/arquitectura.png" width="600" height="550">
 
 
 La idea es desarrollar un pequeño ETL para algunos productos de MercadoLibre.
