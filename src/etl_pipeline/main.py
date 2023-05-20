@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def get_spark_session() -> SparkSession:
-    return SparkSession.builder.appName("scrapper_etl").master("local[4]").enableHiveSupport().getOrCreate()
+    return SparkSession.builder.appName("scrapper_etl").master("local[4]").getOrCreate()
 
 
 def get_actual_date_str(sep="-") -> str:
