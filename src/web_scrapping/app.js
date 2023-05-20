@@ -1,85 +1,97 @@
 const puppeteer = require("puppeteer")
+const fs = require('fs')
+const path = require('path')
 
-const URL = "https://listado.mercadolibre.com.uy"
+const URL = "https://listado.mercadolibre.com.uy/inmuebles/apartamentos/alquiler/hasta-2-dormitorios/montevideo/apartamento-alquiler-montevideo_OrderId_PRICE_FULL*BATHROOMS_*-1_NoIndex_True_PARKING*LOTS_0-0#applied_filter_id%3DBEDROOMS%26applied_filter_name%3DDormitorios%26applied_filter_order%3D7%26applied_value_id%3D*-2%26applied_value_name%3D*-2%26applied_value_order%3D6%26applied_value_results%3DUNKNOWN_RESULTS%26is_custom%3Dtrue"
 
-const start = async () => {
+
+function getActualDate() {
+    const today = new Date()
+
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+
+    return `${today.getFullYear()}-${month}-${day}`
+}
+
+
+function evaluatePage() {
+    const data = []
+    const div = document.getElementsByClassName("ui-search-layout")
+
+    for (let child of div) {
+        for (let li of child.childNodes) {
+            const article = li.firstChild.firstChild
+            const linkArticle = article.childNodes[0].firstChild.href
+
+            const articleData = article.childNodes[1].childNodes[0]
+
+            const priceData = articleData.firstChild.firstChild.firstChild.firstChild.firstChild.childNodes[1]
+            const moneda = priceData.firstChild.textContent
+            const price = parseInt(priceData.childNodes[1].textContent.replace(".", ""))
+
+            const metrosCuadrados = articleData.childNodes[1].firstChild.firstChild.textContent
+            const title = articleData.childNodes[2].childNodes[1].textContent
+            const dir = articleData.childNodes[3].textContent
+
+            data.push({
+                linkArticle,
+                title,
+                price,
+                moneda,
+                metrosCuadrados,
+                dir
+            })
+        }
+    }
+
+    return data
+}
+
+
+
+function saveDataInJson(data) {
+    let today = getActualDate().replaceAll("-", "")
+    const filepath = path.join(__dirname, `/data/${today}.json`)
+
+    fs.writeFile(filepath, data, "utf-8", (error) => {
+        if (error)
+            console.error("No se pudo guardar el archivo")
+        else
+            console.log("Archivo guardado en", filepath)
+    })
+}
+
+
+async function start() {
     let browser;
     try {
         // in false, show the chromium window:
-        browser = await puppeteer.launch({ headless: true });
-        const page = await browser.newPage();
-        page.setDefaultNavigationTimeout(0);
-        await page.goto(`${URL}/product`);
-        await page.waitForTimeout(4000);
-        await page.waitForSelector("[ui-search-layout]");
-        console.log("Evaluando documento HTML...");
+        browser = await puppeteer.launch({ headless: false })
+        const page = await browser.newPage()
+        page.setDefaultNavigationTimeout(0)
+        await page.goto(URL)
+        await page.waitForSelector("#cb1-edit")
+        await page.click("#cb1-edit")
 
-        const data = await page.evaluate(() => {
-            const olElement = document.querySelector(".ui-search-layout");
-            const infoScrapping = [];
+        console.log("Evaluando documento HTML...")
+        const data = await page.evaluate(evaluatePage)
 
-            // the ideal would be to obtain the current price from an API:
-            const convertDollarToPesosUy = price => price * 42.71;
+        await browser.close()
+        return data
 
-            const isAValidResult = titleArticle => {
-                // return true if the result is really a ps5
-                let title = titleArticle.toUpperCase().replaceAll(" ", "");
-                const words = ["PS5", "PLAYSTATION5"]
-                return title.search(words[0]) !== -1 || title.search(words[1]) !== -1;
-            }
-
-            for (const child of olElement.childNodes) {
-                // const divContainer = document.querySelector(".ui-search-result__wrapper");
-                const divContainer = child.childNodes[0];
-                const contentWrapper = divContainer.childNodes[0].childNodes[1];
-                const titleElement = contentWrapper.childNodes[0].childNodes[0];   // element: <a href=""></a>
-                const link = titleElement.href;
-                const title = titleElement.childNodes[0].textContent;
-                if (isAValidResult(title)) {
-                    continue;
-                }
-
-                const soldByElement = contentWrapper.childNodes[0].childNodes[1].childNodes[0].textContent;
-                if (soldByElement === null || soldByElement === undefined) {
-                    soldByElement = "Sin información del vendedor";
-                }
-                const priceElement = contentWrapper.childNodes[1].childNodes[0]
-                    .childNodes[0].childNodes[0].childNodes[0].childNodes[0];
-
-                const coin = priceElement.childNodes[0].textContent;    // U$S or $
-                let price = parseFloat((priceElement.childNodes[1].textContent).replace(".", ""));
-
-                if (coin === "U$S") {
-                    price = convertDollarToPesosUy(price);
-                }
-                infoScrapping.push({
-                    title: title,
-                    soldBy: soldByElement,
-                    price: price,
-                    link: link
-                });
-
-            }
-            return infoScrapping;
-        });
-
-        await browser.close();
-        data.forEach(elem => console.log(elem));
-        return data;
-
-    } catch (exception) {
-        console.log(exception);
-        await browser.close();
+    } catch (error) {
+        console.error(error)
+        await browser.close()
     }
 }
 
 
-const main = async () => {
+async function main() {
     const data = await start()
-    data.forEach(element => console.log(element))
-    /**
-     * Guardar la info en archivo .json
-     */
+    // data.forEach(elem => console.log(elem))
+    const jsonData = JSON.stringify(data)
+    saveDataInJson(jsonData)
 }
 
 

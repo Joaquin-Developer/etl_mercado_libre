@@ -1,2 +1,4 @@
 .vscode/
 src/web_scrapping/node_modules/
+src/web_scrapping/data/
+.pylintrc
